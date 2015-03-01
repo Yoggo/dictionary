@@ -9,6 +9,7 @@
         android:id="@+id/search_word_edit_text"
         android:layout_width="match_parent"
         android:layout_height="50dp"
+        android:singleLine="true"
         android:ems="10" />
     
     <ListView

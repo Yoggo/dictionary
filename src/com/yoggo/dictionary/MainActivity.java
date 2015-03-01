@@ -4,14 +4,18 @@ import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
 import android.content.Loader;
 import android.database.Cursor;
-import android.net.Uri;
+import android.graphics.Color;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.text.format.Time;
 import android.util.Log;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.SimpleCursorAdapter;
+import android.widget.Toast;
 
 import com.yoggo.dictionary.database.DictionaryProvider;
 import com.yoggo.dictionary.loaders.DictionaryLoader;
@@ -26,6 +30,7 @@ public class MainActivity extends Activity implements LoaderCallbacks<Cursor>{
 	private ListView dictionaryListView;
 	private EditText searchEditText;
 	private LoaderCallbacks<Cursor> loaderCallbacks;
+	private String lang;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -61,8 +66,35 @@ public class MainActivity extends Activity implements LoaderCallbacks<Cursor>{
 			}
 
 			@Override
-			public void afterTextChanged(Editable s) {
-				String lang = getLang(s.toString());
+			public void afterTextChanged(final Editable s) {
+				
+				Handler handler = new Handler();
+				final String currentString = s.toString();
+				lang = getLang(s.toString());
+				
+				//add a delay of one second while loading a word from server
+				handler.postDelayed(new Runnable() {
+					
+				    @Override
+				    public void run() {
+				    	if (searchEditText.getText().toString().equals(currentString)) {
+				    		
+							Loader<Cursor> loader = getLoaderManager().getLoader(LOADER_DICTIONARY_ID);
+							Bundle bundle = new Bundle();
+							bundle.putString(DictionaryLoader.ARGS_SEARCH_WORD, searchEditText.getText().toString());
+							if(lang != null){
+								bundle.putString(DictionaryLoader.ARGS_LANG, lang);
+							}
+							bundle.putBoolean(DictionaryLoader.ARGS_FROM_SERVER, true);
+							
+							loader = getLoaderManager().restartLoader(LOADER_DICTIONARY_ID, bundle,
+						    		loaderCallbacks);
+						    loader.forceLoad();
+						}
+				    }
+				}, 1000);
+				
+				//without delay if loading a word from the local database
 				Loader<Cursor> loader = getLoaderManager().getLoader(LOADER_DICTIONARY_ID);
 				Bundle bundle = new Bundle();
 				bundle.putString(DictionaryLoader.ARGS_SEARCH_WORD, searchEditText.getText().toString());
@@ -73,11 +105,12 @@ public class MainActivity extends Activity implements LoaderCallbacks<Cursor>{
 				loader = getLoaderManager().restartLoader(LOADER_DICTIONARY_ID, bundle,
 			    		loaderCallbacks);
 			    loader.forceLoad();
+
 			}
 			
 		});
 	}
-	
+
 	private void findViews(){
 		dictionaryListView = (ListView) findViewById(R.id.dictionary_list_view);
 		searchEditText = (EditText) findViewById(R.id.search_word_edit_text);
@@ -101,22 +134,22 @@ public class MainActivity extends Activity implements LoaderCallbacks<Cursor>{
 	public Loader<Cursor> onCreateLoader(int id, Bundle args){
 		Loader<Cursor> loader = null;
 		if(id == LOADER_DICTIONARY_ID){
-			loader = new DictionaryLoader(this, args);
+			loader = new DictionaryLoader(this, args, dictionaryListView);
 			Log.d(LOG_DEBUG, "onCreateLoader");
 		}
 		return loader;
 	}
 	
-	private void updateDictionaryList(Cursor cursor, String lang){
+	public void updateDictionaryList(Cursor cursor, String lang){
 		int to[] = { android.R.id.text1, android.R.id.text2 };
 		SimpleCursorAdapter adapter = null;
 		//refresh a list at the specified language
 		if(lang.equals(DictionaryLoader.LANG_EN)){
-			String[] from = {"en_word", "ru_word"};
+			String[] from = {DictionaryProvider.EN_WORD, DictionaryProvider.RU_WORD};
 			adapter = new SimpleCursorAdapter(getApplicationContext(), 
 					android.R.layout.simple_list_item_2, cursor, from, to,0);
 		}else if(lang.equals(DictionaryLoader.LANG_RU)){
-			String[] from = {"ru_word", "en_word"};
+			String[] from = {DictionaryProvider.RU_WORD, DictionaryProvider.EN_WORD};
 			adapter = new SimpleCursorAdapter(getApplicationContext(), 
 					android.R.layout.simple_list_item_2, cursor, from, to,0);
 		}

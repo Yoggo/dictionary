@@ -84,7 +84,7 @@ public class DictionaryProvider extends ContentProvider{
 		case URI_DICTIONARY:
 			//if sorting is not specified, puts it by name
 			if(TextUtils.isEmpty(sortOrder)){
-				sortOrder = " datetime(" + DATE_USE + ") ";
+				sortOrder = " datetime(" + DATE_USE + ") DESC ";
 			}
 			break;
 		case URI_DICTIONARY_ID:
