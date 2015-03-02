@@ -2,25 +2,31 @@ package com.yoggo.dictionary;
 
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
+import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
-import android.graphics.Color;
-import android.os.AsyncTask;
+import android.graphics.BitmapFactory;
+import android.graphics.drawable.BitmapDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.text.format.Time;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.Window;
+import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.SimpleCursorAdapter;
-import android.widget.Toast;
 
 import com.yoggo.dictionary.database.DictionaryProvider;
 import com.yoggo.dictionary.loaders.DictionaryLoader;
 
-public class MainActivity extends Activity implements LoaderCallbacks<Cursor>{
+public class MainActivity extends Activity implements LoaderCallbacks<Cursor>,
+                                                MenuItem.OnMenuItemClickListener,
+                                                AdapterView.OnItemClickListener{
 	
 	static final int LOADER_DICTIONARY_ID = 1;
 	final String LOG_DEBUG = "DICTIONARY_LOG";
@@ -29,23 +35,27 @@ public class MainActivity extends Activity implements LoaderCallbacks<Cursor>{
 	
 	private ListView dictionaryListView;
 	private EditText searchEditText;
+	private SimpleCursorAdapter adapter;
 	private LoaderCallbacks<Cursor> loaderCallbacks;
 	private String lang;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		 requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
 		setContentView(R.layout.activity_main);
 		findViews();
+		
 		loaderCallbacks = this;
 		setSearchTextWatcher(searchEditText);
 		Cursor cursor = getContentResolver().query(DictionaryProvider.DICTIONARY_URI, null,
 				null, null, null);
 		String[] from = {"ru_word", "en_word"};
 		int to[] = { android.R.id.text1, android.R.id.text2 };
-		SimpleCursorAdapter adapter = new SimpleCursorAdapter(this, 
+		adapter = new SimpleCursorAdapter(this, 
 				android.R.layout.simple_list_item_2, cursor, from, to,0);
 		dictionaryListView.setAdapter(adapter);
+		dictionaryListView.setOnItemClickListener(this);
 		//set bundle for loader
 		Bundle bundle = new Bundle();
 		bundle.putString(DictionaryLoader.ARGS_SEARCH_WORD, searchEditText.getText().toString());
@@ -101,6 +111,7 @@ public class MainActivity extends Activity implements LoaderCallbacks<Cursor>{
 				if(lang != null){
 					bundle.putString(DictionaryLoader.ARGS_LANG, lang);
 				}
+				bundle.putBoolean(DictionaryLoader.ARGS_FROM_SERVER, false);
 				
 				loader = getLoaderManager().restartLoader(LOADER_DICTIONARY_ID, bundle,
 			    		loaderCallbacks);
@@ -135,6 +146,7 @@ public class MainActivity extends Activity implements LoaderCallbacks<Cursor>{
 		Loader<Cursor> loader = null;
 		if(id == LOADER_DICTIONARY_ID){
 			loader = new DictionaryLoader(this, args, dictionaryListView);
+			
 			Log.d(LOG_DEBUG, "onCreateLoader");
 		}
 		return loader;
@@ -142,7 +154,7 @@ public class MainActivity extends Activity implements LoaderCallbacks<Cursor>{
 	
 	public void updateDictionaryList(Cursor cursor, String lang){
 		int to[] = { android.R.id.text1, android.R.id.text2 };
-		SimpleCursorAdapter adapter = null;
+		adapter = null;
 		//refresh a list at the specified language
 		if(lang.equals(DictionaryLoader.LANG_EN)){
 			String[] from = {DictionaryProvider.EN_WORD, DictionaryProvider.RU_WORD};
@@ -172,5 +184,51 @@ public class MainActivity extends Activity implements LoaderCallbacks<Cursor>{
 	public void onLoaderReset(Loader<Cursor> loader){
 		Log.d(LOG_DEBUG, "onLoaderReset");
 	}
+	
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu){
+		getMenuInflater().inflate(R.menu.main, menu);
+		MenuItem shareItem = menu.findItem(R.id.menu_item_sharing);
+		shareItem.setOnMenuItemClickListener(this);
+		return true;
+	}
+
+	@Override
+	public boolean onMenuItemClick(MenuItem item) {
+		switch(item.getItemId()){
+		case R.id.menu_item_sharing:
+			String message = "This is " + getResources().getString(R.string.app_name);
+			Intent shareIntent = new Intent();
+			shareIntent.setAction(Intent.ACTION_SEND);
+			shareIntent.putExtra(Intent.EXTRA_TEXT, message);
+			shareIntent.setType("text/plain");
+			startActivity(shareIntent);
+			break;
+		}
+		return false;
+	}
+
+	@Override
+	public void onItemClick(AdapterView<?> parent, View view, int position,
+			long id) {
+		Cursor cursor = ((SimpleCursorAdapter) adapter).getCursor();
+		cursor.moveToPosition(position);
+		String ru_word = cursor.getString(cursor.getColumnIndex(DictionaryProvider.RU_WORD));
+		String en_word = cursor.getString(cursor.getColumnIndex(DictionaryProvider.EN_WORD));
+		Intent openNewActivity = new Intent(getApplicationContext(), WordInfoActivity.class);
+		openNewActivity.putExtra(DictionaryProvider.RU_WORD, ru_word);
+		openNewActivity.putExtra(DictionaryProvider.EN_WORD, en_word);
+	    startActivity(openNewActivity);
+		
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
 
 }

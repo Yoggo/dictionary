@@ -11,13 +11,18 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.Loader;
 import android.database.Cursor;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.widget.ListView;
 import android.widget.SimpleCursorAdapter;
+import android.widget.Toast;
 
+import com.yoggo.dictionary.MainActivity;
+import com.yoggo.dictionary.R;
 import com.yoggo.dictionary.database.DictionaryProvider;
 import com.yoggo.dictionary.json.MyMemory;
 import com.yoggo.dictionary.json.ResponseData;
@@ -42,6 +47,7 @@ public class DictionaryLoader extends Loader<Cursor>{
 	private boolean fromServer;
 	private ListView dictionaryListView;
 	
+	
 	public DictionaryLoader(Context context, Bundle args, ListView dictionaryListView){
 		super(context);
 		this.context = context;
@@ -51,6 +57,7 @@ public class DictionaryLoader extends Loader<Cursor>{
 			searchWord = args.getString(ARGS_SEARCH_WORD);
 			lang = args.getString(ARGS_LANG);
 			fromServer = args.getBoolean(ARGS_FROM_SERVER);
+			
 		}
 		if(TextUtils.isEmpty(searchWord)){
 			searchWord = "";
@@ -103,6 +110,7 @@ public class DictionaryLoader extends Loader<Cursor>{
 		
 		private Cursor cursor;
 		private String word;
+		private boolean isNetworkEnable = true; //default value
 		
 		private Cursor getCursor(String word){
 			String WHERE = "";
@@ -123,11 +131,25 @@ public class DictionaryLoader extends Loader<Cursor>{
 				}
 			}
 			
-			Log.d("WHERE", WHERE);
 			cursor = context.getContentResolver()
 					.query(DictionaryProvider.DICTIONARY_URI, null,
 					WHERE, null, null);
 			return cursor;
+		}
+		
+		//method for change actionbar progress visibility
+		private void isProgressbarVisible(final boolean isVisible) {
+			final MainActivity mainActivity = (MainActivity) context;
+			mainActivity.runOnUiThread(new Runnable() {
+
+				@Override
+				public void run() {
+					mainActivity
+							.setProgressBarIndeterminateVisibility(isVisible);
+				}
+
+			});
+
 		}
 		
 		@Override
@@ -137,17 +159,34 @@ public class DictionaryLoader extends Loader<Cursor>{
 			cursor = getCursor(word);
 			//if local DB is no current word - get it from server
 			if(cursor.getCount() == 0 && fromServer){
-				Log.d(LOG_DEBUG, "not found");
+				
+				//check network connection
+				if(!isNetworkConnected()){
+					isNetworkEnable = false;
+					return cursor;
+				}
 				String langPair = "en|ru";
 				if(lang.equals(LANG_EN)){
 					langPair = "en|ru";
 				}else if(lang.equals(LANG_RU)){
 					langPair = "ru|en";
 				}
+				isProgressbarVisible(true);
 				requestData(params[0], langPair);
 			}
 			return cursor;
 		}
+		
+		private boolean isNetworkConnected() {
+			  ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+			  NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
+			  if (networkInfo == null) {
+			   return false;
+			  } else{
+				  return true; 
+			  }
+			   
+			 }
 		
 		private void requestData(final String q, final String langPair){
 			RestAdapter adapter = new RestAdapter.Builder()
@@ -200,6 +239,7 @@ public class DictionaryLoader extends Loader<Cursor>{
 								dictionaryListView.setAdapter(adapter);
 							}
 						}
+						isProgressbarVisible(false);
 					}
 					
 				}
@@ -207,6 +247,7 @@ public class DictionaryLoader extends Loader<Cursor>{
 				@Override
 				public void failure(RetrofitError arg0){
 					Log.d("ERROR", arg0.getMessage());
+					isProgressbarVisible(false);
 				}
 			});
 			
@@ -214,7 +255,13 @@ public class DictionaryLoader extends Loader<Cursor>{
 		
 		@Override
 		protected void onPostExecute(Cursor cursor){
+			if(isNetworkEnable){
 				deliverResult(cursor);
+			}else{
+				Toast.makeText(context, R.string.no_network_connection, Toast.LENGTH_SHORT).show();
+				deliverResult(cursor);
+			}
+			
 		}
 		
 		
