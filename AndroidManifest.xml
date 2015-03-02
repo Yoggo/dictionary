@@ -2,11 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.yoggo.dictionary"
     android:versionCode="1"
-    android:versionName="1.0" >
+    android:versionName="develop 1.3" >
 
     <uses-sdk
         android:minSdkVersion="14"
         android:targetSdkVersion="21" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"
@@ -21,6 +25,16 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <provider
+            android:name=".database.DictionaryProvider"
+            android:authorities="com.yoggo.dictionary.database.DictionaryProvider" >
+        </provider>
+
+        <activity
+            android:name=".WordInfoActivity"
+            android:label="@string/title_activity_word_info" >
         </activity>
     </application>
 

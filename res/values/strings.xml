@@ -4,5 +4,14 @@
     <string name="app_name">Dictionary</string>
     <string name="hello_world">Hello world!</string>
     <string name="action_settings">Settings</string>
+    
+    
+    <string name="no_network_connection">No network connection</string>
+    
+    
+    <string name="sharing">Share</string>
+    <string name="title_activity_word_info">Info about word</string>
+    <string name="russion_word">Russian word: </string>
+    <string name="english_word">English word: </string>
 
 </resources>
