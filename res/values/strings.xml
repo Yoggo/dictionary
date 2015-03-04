@@ -11,7 +11,7 @@
     
     <string name="sharing">Share</string>
     <string name="title_activity_word_info">Info about word</string>
-    <string name="russion_word">Russian word: </string>
-    <string name="english_word">English word: </string>
+    <string name="russion_word">Русский: </string>
+    <string name="english_word">English: </string>
 
 </resources>
