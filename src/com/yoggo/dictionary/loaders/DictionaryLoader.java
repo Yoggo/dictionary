@@ -27,6 +27,7 @@ import com.yoggo.dictionary.database.DictionaryProvider;
 import com.yoggo.dictionary.interfaces.ProgressCallback;
 import com.yoggo.dictionary.json.MyMemory;
 import com.yoggo.dictionary.json.ResponseData;
+import com.yoggo.dictionary.tools.DictionarySelector;
 import com.yoggo.dictionary.tools.TranslateAPI;
 
 public class DictionaryLoader extends Loader<Cursor> {
@@ -45,8 +46,8 @@ public class DictionaryLoader extends Loader<Cursor> {
 	private String lang;
 	private Bundle args;
 	private boolean fromServer;
-	private boolean isNetworkEnable;
 	private Cursor cursor;
+	DictionarySelector dictionarySelector;
 	private ProgressCallback progressCallback;
 
 	public DictionaryLoader(Context context, Bundle args, ProgressCallback progressCallback) {
@@ -66,7 +67,7 @@ public class DictionaryLoader extends Loader<Cursor> {
 		if (TextUtils.isEmpty(lang)) {
 			lang = LANG_EN;
 		}
-		isNetworkEnable = true;
+		dictionarySelector = new DictionarySelector(context);
 	}
 
 	public Bundle getBundleArgs() {
@@ -89,8 +90,7 @@ public class DictionaryLoader extends Loader<Cursor> {
 	protected void onForceLoad() {
 		super.onForceLoad();
 		Log.d(LOG_DEBUG, "onForceLoad");
-		Cursor cursor = getWordCursor();
-		getResult(cursor);
+		getResult(checkWord());
 	}
 
 	@Override
@@ -104,36 +104,65 @@ public class DictionaryLoader extends Loader<Cursor> {
 		super.onReset();
 		Log.d(LOG_DEBUG, "onReset");
 	}
+	
+	private String getLangPair(){
+		String langPair = "en|ru";
+		if (lang.equals(LANG_EN)) {
+			langPair = "en|ru";
+		} else if (lang.equals(LANG_RU)) {
+			langPair = "ru|en";
+		}
+		return langPair;
+	}
+	public Cursor getCursor(String searchWord,
+			boolean isFullWord, String lang) {
+		String where = getWhere(isFullWord, searchWord, lang);
 
-	private Cursor getCursor(String word) {
-		String where = getWhere();
-		// if pause passed search full word
-
-		cursor = context.getContentResolver().query(
+		Cursor cursor = context.getContentResolver().query(
 				DictionaryProvider.DICTIONARY_URI, null, where, null, null);
 		return cursor;
 	}
 
-	protected Cursor getWordCursor() {
+	private String getWhere(boolean isFullWord, String searchWord, String lang) {
+		String where = "";
+		// if pause passed search full word
+		if (isFullWord && !searchWord.equals("")) {
+			// search words by language
+			if (lang.equals(DictionaryLoader.LANG_EN)) {
+				where = DictionaryProvider.EN_WORD + " = " + "'" + searchWord
+						+ "'";
+			} else if (lang.equals(DictionaryLoader.LANG_RU)) {
+				where = DictionaryProvider.RU_WORD + " = " + "'" + searchWord
+						+ "'";
+			}
+		} else {
+			// search words by language
+			if (lang.equals(DictionaryLoader.LANG_EN)) {
+				where = DictionaryProvider.EN_WORD + " LIKE " + "'"
+						+ searchWord + "%'";
+			} else if (lang.equals(DictionaryLoader.LANG_RU)) {
+				where = DictionaryProvider.RU_WORD + " LIKE " + "'"
+						+ searchWord + "%'";
+			}
+		}
+		return where;
+	}
+
+	private Cursor checkWord() {
 		Log.d(LOG_DEBUG, " doInBackground");
-		cursor = getCursor(searchWord);
+		cursor = dictionarySelector.getCursor(searchWord,
+                fromServer,lang);
 		// if local DB is no current word - get it from server
 		if (cursor.getCount() == 0 && fromServer) {
 			// check network connection
 			if (!isNetworkConnected()) {
-				isNetworkEnable = false;
 				return cursor;
 			}
 			progressCallback.setProgressVisible(true);
-			String langPair = "en|ru";
-			if (lang.equals(LANG_EN)) {
-				langPair = "en|ru";
-			} else if (lang.equals(LANG_RU)) {
-				langPair = "ru|en";
-			}
+			String langPair = getLangPair();
+			
 			requestData(searchWord, langPair);
 		}
-
 		return cursor;
 	}
 
@@ -146,10 +175,10 @@ public class DictionaryLoader extends Loader<Cursor> {
 		} else {
 			return true;
 		}
-
 	}
 
 	private void requestData(final String q, final String langPair) {
+		
 		RestAdapter adapter = new RestAdapter.Builder().setEndpoint(ENDPOINT)
 				.build();
 		TranslateAPI api = adapter.create(TranslateAPI.class);
@@ -159,17 +188,16 @@ public class DictionaryLoader extends Loader<Cursor> {
 				if (args0 != null) {
 					ResponseData responseData = args0.responseData;
 					String translatedText = responseData.translatedText;
+					
 					// check the word
 					if (translatedText != null
 							&& !translatedText.equals("")
 							&& !translatedText.toLowerCase().equals(
 									q.toLowerCase())) {
-						String where = getWhere();
-						setContentValues(translatedText, q);
+						dictionarySelector.insertWord(translatedText, q, lang);
 						// update cursor for the new word in the database
-						cursor = context.getContentResolver().query(
-								DictionaryProvider.DICTIONARY_URI, null, where,
-								null, null);
+						cursor = dictionarySelector.getCursor(q,
+				                fromServer,lang);
 						deliverResult(cursor);
 					}
 					progressCallback.setProgressVisible(false);
@@ -185,58 +213,14 @@ public class DictionaryLoader extends Loader<Cursor> {
 
 	}
 
-	private String getWhere() {
-		String where = "";
-		if (fromServer && !searchWord.equals("")) {
-			// search words by language
-			if (lang.equals(LANG_EN)) {
-				where = DictionaryProvider.EN_WORD + " = " + "'" + searchWord
-						+ "'";
-			} else if (lang.equals(LANG_RU)) {
-				where = DictionaryProvider.RU_WORD + " = " + "'" + searchWord
-						+ "'";
-			}
-		} else {
-			// search words by language
-			if (lang.equals(LANG_EN)) {
-				where = DictionaryProvider.EN_WORD + " LIKE " + "'"
-						+ searchWord + "%'";
-			} else if (lang.equals(LANG_RU)) {
-				where = DictionaryProvider.RU_WORD + " LIKE " + "'"
-						+ searchWord + "%'";
-			}
-		}
-		return where;
-	}
-
-	private void setContentValues(String translatedText, String q) {
-		ContentValues contentValues = new ContentValues();
-		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
-		String date = sdf.format(new Date());
-		contentValues.put(DictionaryProvider.DATE_USE, date);
-		if (lang.equals(LANG_EN)) {
-			contentValues.put(DictionaryProvider.RU_WORD,
-					translatedText.toLowerCase());
-			contentValues.put(DictionaryProvider.EN_WORD, q.toLowerCase());
-		} else if (lang.equals(LANG_RU)) {
-			contentValues.put(DictionaryProvider.EN_WORD,
-					translatedText.toLowerCase());
-			contentValues.put(DictionaryProvider.RU_WORD, q.toLowerCase());
-		}
-		context.getContentResolver().insert(DictionaryProvider.DICTIONARY_URI,
-				contentValues);
-	}
-
 	protected void getResult(Cursor cursor) {
-		if (isNetworkEnable) {
+		if (isNetworkConnected()) {
 			deliverResult(cursor);
 		} else {
 			Toast.makeText(context, R.string.no_network_connection,
 					Toast.LENGTH_SHORT).show();
-			
 			deliverResult(cursor);
 		}
-
 	}
 
 }
